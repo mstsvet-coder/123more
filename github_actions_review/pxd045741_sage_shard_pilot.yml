@@ -1,0 +1,47 @@
+name: PXD045741 Sage shard pilot
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sage-shard-pilot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up micromamba with Sage
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: sage
+          create-args: >-
+            -c conda-forge -c bioconda python=3.11 sage-proteomics
+
+      - name: Check required repository data
+        shell: bash -l {0}
+        run: |
+          test -f data/fasta/B2117_TARGET_PLUS_CRAP_GPM_CONTAMINANTS_V024.fasta
+          test -f data/projection/MSB10955Pool_30MinDIA041023GPF_01.search_projection_shard_v26_1000spectra.mzML.gz
+          python tools/check_inputs.py --fasta data/fasta/B2117_TARGET_PLUS_CRAP_GPM_CONTAMINANTS_V024.fasta --mzml data/projection/MSB10955Pool_30MinDIA041023GPF_01.search_projection_shard_v26_1000spectra.mzML.gz --json-out outputs/input_gate.json
+
+      - name: Build Sage config
+        shell: bash -l {0}
+        run: |
+          python tools/make_sage_config.py --fasta data/fasta/B2117_TARGET_PLUS_CRAP_GPM_CONTAMINANTS_V024.fasta --mzml data/projection/MSB10955Pool_30MinDIA041023GPF_01.search_projection_shard_v26_1000spectra.mzML.gz --outdir outputs/sage --config outputs/sage_config.json
+
+      - name: Run Sage shard pilot
+        shell: bash -l {0}
+        run: |
+          sage outputs/sage_config.json
+
+      - name: Validate Sage results
+        shell: bash -l {0}
+        run: |
+          python tools/validate_sage_results.py --results outputs/sage/results.sage.tsv --json-out outputs/sage_results_validation.json
+
+      - name: Upload outputs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pxd045741-sage-shard-pilot-outputs
+          path: outputs/
